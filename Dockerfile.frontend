@@ -6,7 +6,9 @@ FROM base AS dependencies
 COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml ./
 COPY apps/backend/package.json ./apps/backend/
 COPY apps/frontend/package.json ./apps/frontend/
-RUN pnpm install --frozen-lockfile || pnpm install
+RUN pnpm config set fetch-retries 10 && \
+    pnpm config set fetch-retry-maxtimeout 300000 && \
+    (pnpm install --frozen-lockfile || pnpm install)
 
 FROM dependencies AS builder
 COPY . .
