@@ -4,7 +4,7 @@ import { TenantContext } from '../tenancy/tenant.context';
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
-  private pool: Pool;
+  private pool!: Pool;
   private isMock: boolean = false;
 
   // In-memory mock storage fallback when live Postgres connection fails (for standalone local dev & smoke tests)

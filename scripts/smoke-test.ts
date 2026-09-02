@@ -1,5 +1,4 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { AppModule } from '../apps/backend/src/app.module';
+import { DatabaseService } from '../apps/backend/src/database/database.service';
 import { StudentsService } from '../apps/backend/src/students/students.service';
 import { LedgerService } from '../apps/backend/src/ledger/ledger.service';
 import { TenantContext } from '../apps/backend/src/tenancy/tenant.context';
@@ -9,12 +8,11 @@ async function runSmokeTest() {
   console.log(' SCHOLARIA MULTI-TENANCY & DATA ISOLATION INTEGRATION SMOKE TEST');
   console.log('================================================================\n');
 
-  const moduleFixture: TestingModule = await Test.createTestingModule({
-    imports: [AppModule],
-  }).compile();
+  const dbService = new DatabaseService();
+  await dbService.onModuleInit();
 
-  const studentsService = moduleFixture.get<StudentsService>(StudentsService);
-  const ledgerService = moduleFixture.get<LedgerService>(LedgerService);
+  const studentsService = new StudentsService(dbService);
+  const ledgerService = new LedgerService(dbService);
 
   let passedTests = 0;
   let totalTests = 0;
@@ -109,7 +107,7 @@ async function runSmokeTest() {
   console.log(` SUMMARY: ${passedTests} / ${totalTests} TESTS PASSED`);
   console.log('================================================================\n');
 
-  await moduleFixture.close();
+  await dbService.onModuleDestroy();
   if (passedTests !== totalTests) {
     process.exit(1);
   }
