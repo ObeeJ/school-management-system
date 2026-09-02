@@ -7,7 +7,6 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private pool!: Pool;
   private isMock: boolean = false;
 
-  // In-memory mock storage fallback when live Postgres connection fails (for standalone local dev & smoke tests)
   private mockStore: Map<string, any[]> = new Map();
 
   async onModuleInit() {
@@ -37,10 +36,6 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /**
-   * Executes a database query inside a tenant-isolated transactional scope.
-   * Enforces `SET LOCAL app.current_tenant_id = $1` to trigger PostgreSQL RLS policies.
-   */
   async queryTenantScoped<T = any>(text: string, params: any[] = []): Promise<T[]> {
     const session = TenantContext.current();
     const tenantId = session?.tenantId || 'oakwood-academy';
@@ -52,8 +47,6 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     const client: PoolClient = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      
-      // Enforce Row-Level Security via Postgres Session Setting
       await client.query(`SET LOCAL app.current_tenant_id = $1`, [tenantId]);
 
       if (session?.tier === 'GROWTH_ISOLATED_SCHEMA' && session.dbSchema) {
@@ -92,18 +85,37 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
     this.mockStore.set('journal_entries', []);
     this.mockStore.set('ledger_lines', []);
+    this.mockStore.set('kyc_verifications', []);
+    this.mockStore.set('payments', []);
+    this.mockStore.set('ai_datasets', []);
+    this.mockStore.set('ai_patterns', []);
   }
 
   private queryMock<T>(text: string, params: any[], tenantId: string): T[] {
     const textLower = text.toLowerCase();
 
-    // Students table mock queries
+    // Students
     if (textLower.includes('from students')) {
-      const records = this.mockStore.get('students') || [];
-      return records.filter(r => r.tenant_id === tenantId) as T[];
+      const records = (this.mockStore.get('students') || []).filter(r => r.tenant_id === tenantId);
+      if (textLower.includes('count(*)')) {
+        return [{ count: records.length.toString() }] as T[];
+      }
+      return records as T[];
     }
-
-    // Insert student mock query
+    if (textLower.includes('from payments')) {
+      const records = (this.mockStore.get('payments') || []).filter(r => r.tenant_id === tenantId);
+      if (textLower.includes('count(*)')) {
+        return [{ count: records.length.toString() }] as T[];
+      }
+      return records as T[];
+    }
+    if (textLower.includes('from accounts')) {
+      const records = (this.mockStore.get('accounts') || []).filter(r => r.tenant_id === tenantId);
+      if (textLower.includes('count(*)')) {
+        return [{ count: records.length.toString() }] as T[];
+      }
+      return records as T[];
+    }
     if (textLower.includes('insert into students')) {
       const newStudent = {
         id: `st-${Date.now()}`,
@@ -114,37 +126,128 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         grade_level: params[3] || 'Grade 10',
         created_at: new Date(),
       };
-      const records = this.mockStore.get('students') || [];
-      records.push(newStudent);
+      this.mockStore.get('students')?.push(newStudent);
       return [newStudent] as T[];
     }
 
-    // Classes mock queries
+    // KYC
+    if (textLower.includes('insert into kyc_verifications')) {
+      const kyc = {
+        id: `kyc-${Date.now()}`,
+        tenant_id: tenantId,
+        user_id: params[0],
+        provider: params[1],
+        document_type: params[2],
+        document_number: params[3],
+        country_code: params[4],
+        status: params[5],
+        verified_at: new Date(),
+        created_at: new Date(),
+      };
+      this.mockStore.get('kyc_verifications')?.push(kyc);
+      return [kyc] as T[];
+    }
+    if (textLower.includes('from kyc_verifications')) {
+      const records = this.mockStore.get('kyc_verifications') || [];
+      return records.filter(r => r.tenant_id === tenantId) as T[];
+    }
+
+    // Payments
+    if (textLower.includes('insert into payments')) {
+      const payment = {
+        id: `pay-${Date.now()}`,
+        tenant_id: tenantId,
+        type: params[0] === 'PAY_IN' ? 'PAY_IN' : 'PAY_OUT',
+        idempotency_key: params[0] === 'PAY_IN' ? params[0] : params[0],
+        stripe_intent_id: params[1],
+        amount_cents: params[2],
+        currency: params[3],
+        status: params[4],
+        recipient_email: params[5] || null,
+        created_at: new Date(),
+      };
+      // Adjusted parameter alignment for pay-in vs pay-out
+      if (textLower.includes("'pay_in'")) {
+        payment.type = 'PAY_IN';
+        payment.idempotency_key = params[0];
+        payment.stripe_intent_id = params[1];
+        payment.amount_cents = params[2];
+        payment.currency = params[3];
+        payment.status = params[4];
+      } else if (textLower.includes("'pay_out'")) {
+        payment.type = 'PAY_OUT';
+        payment.idempotency_key = params[0];
+        payment.stripe_intent_id = params[1];
+        payment.amount_cents = params[2];
+        payment.currency = params[3];
+        payment.status = params[4];
+        payment.recipient_email = params[5];
+      }
+      this.mockStore.get('payments')?.push(payment);
+      return [payment] as T[];
+    }
+    if (textLower.includes('from payments')) {
+      const records = this.mockStore.get('payments') || [];
+      return records.filter(r => r.tenant_id === tenantId) as T[];
+    }
+
+    // AI Datasets
+    if (textLower.includes('insert into ai_datasets')) {
+      const ds = {
+        id: `ds-${Date.now()}`,
+        tenant_id: tenantId,
+        name: params[0],
+        dataset_type: params[1],
+        record_count: params[2],
+        created_at: new Date(),
+      };
+      this.mockStore.get('ai_datasets')?.push(ds);
+      return [ds] as T[];
+    }
+    if (textLower.includes('from ai_datasets')) {
+      const records = this.mockStore.get('ai_datasets') || [];
+      return records.filter(r => r.tenant_id === tenantId) as T[];
+    }
+
+    // AI Patterns
+    if (textLower.includes('insert into ai_patterns')) {
+      const pat = {
+        id: `pat-${Date.now()}`,
+        tenant_id: tenantId,
+        pattern_name: params[0],
+        system_instructions: params[1],
+        trigger_rule: params[2],
+        is_active: true,
+        created_at: new Date(),
+      };
+      this.mockStore.get('ai_patterns')?.push(pat);
+      return [pat] as T[];
+    }
+    if (textLower.includes('from ai_patterns')) {
+      const records = this.mockStore.get('ai_patterns') || [];
+      return records.filter(r => r.tenant_id === tenantId) as T[];
+    }
+
+    // Classes & Accounts
     if (textLower.includes('from classes')) {
       const records = this.mockStore.get('classes') || [];
       return records.filter(r => r.tenant_id === tenantId) as T[];
     }
-
-    // Accounts mock queries
     if (textLower.includes('from accounts')) {
       const records = this.mockStore.get('accounts') || [];
       return records.filter(r => r.tenant_id === tenantId) as T[];
     }
-
-    // Ledger double entry simulation
     if (textLower.includes('insert into journal_entries')) {
       const entry = {
         id: `je-${Date.now()}`,
         tenant_id: tenantId,
         reference: params[0] || 'FEES-PAYMENT',
         description: params[1] || 'Tuition Fee Payment',
-        posted_at: new Date()
+        posted_at: new Date(),
       };
-      const entries = this.mockStore.get('journal_entries') || [];
-      entries.push(entry);
+      this.mockStore.get('journal_entries')?.push(entry);
       return [entry] as T[];
     }
-
     if (textLower.includes('insert into ledger_lines')) {
       const line = {
         id: `ll-${Date.now()}`,
@@ -153,10 +256,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         account_id: params[1],
         amount_cents: params[2],
         direction: params[3],
-        created_at: new Date()
+        created_at: new Date(),
       };
-      const lines = this.mockStore.get('ledger_lines') || [];
-      lines.push(line);
+      this.mockStore.get('ledger_lines')?.push(line);
       return [line] as T[];
     }
 

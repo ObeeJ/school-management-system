@@ -7,11 +7,38 @@ import { StudentsService } from './students/students.service';
 import { StudentsController } from './students/students.controller';
 import { LedgerService } from './ledger/ledger.service';
 import { LedgerController } from './ledger/ledger.controller';
+import { KycService } from './kyc/kyc.service';
+import { KycController } from './kyc/kyc.controller';
+import { PaymentsService } from './payments/payments.service';
+import { PaymentsController } from './payments/payments.controller';
+import { QueueService } from './queue/queue.service';
+import { AiEngineService } from './ai-engine/ai-engine.service';
+import { AiEngineController } from './ai-engine/ai-engine.controller';
+import { AdminService } from './admin/admin.service';
+import { AdminController } from './admin/admin.controller';
 
 @Module({
   imports: [],
-  controllers: [TenancyController, StudentsController, LedgerController],
-  providers: [DatabaseService, TenantRouterService, StudentsService, LedgerService],
+  controllers: [
+    TenancyController,
+    StudentsController,
+    LedgerController,
+    KycController,
+    PaymentsController,
+    AiEngineController,
+    AdminController,
+  ],
+  providers: [
+    DatabaseService,
+    TenantRouterService,
+    StudentsService,
+    LedgerService,
+    KycService,
+    PaymentsService,
+    QueueService,
+    AiEngineService,
+    AdminService,
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
