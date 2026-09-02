@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL Relational Database with Multi-Tenant Row-Level Security
+  postgres:
+    image: postgres:16-alpine
+    container_name: scholaria-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: school_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./packages/db/schema.sql:/docker-entrypoint-initdb.d/init.sql
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d school_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. Redis Session Context & BullMQ Async Queue Engine
+  redis:
+    image: redis:7-alpine
+    container_name: scholaria-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 3. NestJS Backend API (Multi-Tenancy, Stripe, KYC, AI Engine, Ledger)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend-runner
+    container_name: scholaria-backend
+    restart: always
+    environment:
+      PORT: 4000
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/school_db
+      REDIS_URL: redis://redis:6379
+      STRIPE_SECRET_KEY: mock_dev_key
+      KYC_API_KEY: mock_dev_key
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # 4. Next.js Frontend Application (Anti-Vibe-Coded UI & Admin Portal)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: scholaria-frontend
+    restart: always
+    environment:
+      PORT: 3000
+      NEXT_PUBLIC_API_URL: http://localhost:80/api/v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  # 5. NGINX API Gateway & Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: scholaria-nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  postgres_data:
+  redis_data:
