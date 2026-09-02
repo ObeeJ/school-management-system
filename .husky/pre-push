@@ -1,0 +1,16 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "================================================================================"
+echo " 🔒 SCHOLARIA PRE-PUSH QUALITY GATE: RUNNING MULTI-TENANCY & FINTECH TESTS"
+echo "================================================================================"
+
+npx ts-node --compiler-options '{"module":"commonjs"}' scripts/smoke-test.ts
+
+if [ $? -ne 0 ]; then
+  echo "❌ [PRE-PUSH GATE FAILED] Pre-push tests failed! Push rejected."
+  exit 1
+fi
+
+echo "✓ [PRE-PUSH GATE PASSED] All 13 multi-tenancy & FinTech tests passed cleanly."
+exit 0

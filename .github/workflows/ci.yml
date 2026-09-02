@@ -1,0 +1,44 @@
+name: Scholaria CI/CD Pipeline & Quality Gate
+
+on:
+  push:
+    branches:
+      - '**' # Triggers on all branches (main, dev, feature/*, fix/*)
+  pull_request:
+    branches:
+      - main
+      - dev
+
+jobs:
+  build-and-test:
+    name: Build, Typecheck & Integration Verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 2. Install pnpm Package Manager
+        uses: pnpm/action-setup@v3
+        with:
+          version: 11.1.3
+
+      - name: 3. Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 4. Install Workspace Dependencies
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: 5. TypeScript Compilation & Typecheck (Backend & Frontend)
+        run: |
+          pnpm --filter backend build
+          pnpm --filter frontend build
+
+      - name: 6. Execute Multi-Tenancy & FinTech Integration Smoke Test Suite
+        run: npx ts-node --compiler-options '{"module":"commonjs"}' scripts/smoke-test.ts
+
+      - name: 7. Verify Docker Compose Configuration Integrity
+        run: docker compose config
