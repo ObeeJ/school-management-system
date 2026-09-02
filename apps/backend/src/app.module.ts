@@ -16,6 +16,8 @@ import { AiEngineService } from './ai-engine/ai-engine.service';
 import { AiEngineController } from './ai-engine/ai-engine.controller';
 import { AdminService } from './admin/admin.service';
 import { AdminController } from './admin/admin.controller';
+import { SubscriptionsService } from './subscriptions/subscriptions.service';
+import { SubscriptionsController } from './subscriptions/subscriptions.controller';
 
 @Module({
   imports: [],
@@ -27,6 +29,7 @@ import { AdminController } from './admin/admin.controller';
     PaymentsController,
     AiEngineController,
     AdminController,
+    SubscriptionsController,
   ],
   providers: [
     DatabaseService,
@@ -38,6 +41,7 @@ import { AdminController } from './admin/admin.controller';
     QueueService,
     AiEngineService,
     AdminService,
+    SubscriptionsService,
   ],
 })
 export class AppModule implements NestModule {

@@ -89,6 +89,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     this.mockStore.set('payments', []);
     this.mockStore.set('ai_datasets', []);
     this.mockStore.set('ai_patterns', []);
+    this.mockStore.set('tenant_subscriptions', []);
   }
 
   private queryMock<T>(text: string, params: any[], tenantId: string): T[] {
@@ -207,6 +208,47 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     if (textLower.includes('from ai_datasets')) {
       const records = this.mockStore.get('ai_datasets') || [];
       return records.filter(r => r.tenant_id === tenantId) as T[];
+    }
+
+    // Subscriptions
+    if (textLower.includes('from tenant_subscriptions')) {
+      const records = (this.mockStore.get('tenant_subscriptions') || []).filter(r => r.tenant_id === tenantId);
+      return records as T[];
+    }
+    if (textLower.includes('insert into tenant_subscriptions')) {
+      const existing = (this.mockStore.get('tenant_subscriptions') || []).findIndex(r => r.tenant_id === tenantId);
+      const sub = {
+        id: `sub-${Date.now()}`,
+        tenant_id: tenantId,
+        plan_id: params[1],
+        stripe_subscription_id: params[2],
+        stripe_customer_id: params[3],
+        status: 'ACTIVE',
+        auto_debit_enabled: params[4],
+        current_period_start: params[5],
+        current_period_end: params[6],
+        cancel_at_period_end: false,
+        created_at: new Date(),
+      };
+      if (existing >= 0) {
+        this.mockStore.get('tenant_subscriptions')![existing] = sub;
+      } else {
+        this.mockStore.get('tenant_subscriptions')?.push(sub);
+      }
+      return [sub] as T[];
+    }
+    if (textLower.includes('update tenant_subscriptions')) {
+      const records = (this.mockStore.get('tenant_subscriptions') || []).filter(r => r.tenant_id === tenantId);
+      if (records.length) {
+        if (textLower.includes("cancel_at_period_end = true")) {
+          records[0].cancel_at_period_end = true;
+          records[0].auto_debit_enabled = false;
+        } else if (textLower.includes("status = 'canceled'")) {
+          records[0].status = 'CANCELED';
+          records[0].auto_debit_enabled = false;
+        }
+      }
+      return records as T[];
     }
 
     // AI Patterns

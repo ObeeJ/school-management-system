@@ -6,6 +6,7 @@ import { PaymentsService } from '../apps/backend/src/payments/payments.service';
 import { QueueService } from '../apps/backend/src/queue/queue.service';
 import { AiEngineService } from '../apps/backend/src/ai-engine/ai-engine.service';
 import { AdminService } from '../apps/backend/src/admin/admin.service';
+import { SubscriptionsService } from '../apps/backend/src/subscriptions/subscriptions.service';
 import { TenantContext } from '../apps/backend/src/tenancy/tenant.context';
 
 async function runSmokeTest() {
@@ -23,6 +24,7 @@ async function runSmokeTest() {
   const paymentsService = new PaymentsService(dbService, ledgerService);
   const aiEngineService = new AiEngineService(dbService, queueService);
   const adminService = new AdminService(dbService, queueService);
+  const subscriptionsService = new SubscriptionsService(dbService);
 
   let passedTests = 0;
   let totalTests = 0;
@@ -69,7 +71,36 @@ async function runSmokeTest() {
   );
 
   // ---------------------------------------------------------------------------
-  // TEST 2: KYC Compliance Evaluation & Dev Bypass Mode
+  // TEST 2: Membership Plan System & ChatGPT Auto-Debit / Cancellation Model
+  // ---------------------------------------------------------------------------
+  const plans = subscriptionsService.getAvailablePlans();
+  assert(plans.length === 3, 'Available membership plans include Starter, Growth, and Enterprise.');
+
+  await TenantContext.run(
+    { tenantId: 'oakwood-academy', tier: 'STARTER_POOLED_RLS' },
+    async () => {
+      const subRes = await subscriptionsService.subscribePlan({
+        plan_id: 'PLAN_GROWTH',
+        auto_debit: true,
+      });
+      assert(
+        subRes.subscription.plan_id === 'PLAN_GROWTH' && subRes.subscription.auto_debit_enabled === true,
+        'Subscribed to Growth Plan with automatic monthly Stripe auto-debit.'
+      );
+
+      // ChatGPT Cancellation Model: Cancel at period end
+      const cancelRes = await subscriptionsService.cancelSubscription({
+        cancel_immediately: false,
+      });
+      assert(
+        cancelRes.cancel_at_period_end === true && cancelRes.auto_debit_enabled === false,
+        'ChatGPT Cancellation: Auto-debit disabled, paid features retained until period end date.'
+      );
+    }
+  );
+
+  // ---------------------------------------------------------------------------
+  // TEST 3: KYC Compliance Evaluation & Dev Bypass Mode
   // ---------------------------------------------------------------------------
   const kycRec = kycService.getKycProviderRecommendation();
   assert(
@@ -94,14 +125,14 @@ async function runSmokeTest() {
   );
 
   // ---------------------------------------------------------------------------
-  // TEST 3: Stripe Pay-In & Pay-Out FinOps Idempotency & Ledger Balance
+  // TEST 4: Stripe Pay-In & Pay-Out FinOps Idempotency & Ledger Balance
   // ---------------------------------------------------------------------------
   await TenantContext.run(
     { tenantId: 'oakwood-academy', tier: 'STARTER_POOLED_RLS' },
     async () => {
       const payIn = await paymentsService.processPayIn({
         idempotency_key: `IK-PAYIN-${Date.now()}`,
-        amount_cents: 150000, // $1,500.00
+        amount_cents: 150000,
         currency: 'USD',
         description: 'Tuition Fall 2026',
       });
@@ -109,7 +140,7 @@ async function runSmokeTest() {
 
       const payOut = await paymentsService.processPayOut({
         idempotency_key: `IK-PAYOUT-${Date.now()}`,
-        amount_cents: 45000, // $450.00
+        amount_cents: 45000,
         currency: 'USD',
         recipient_email: 'payroll@oakwood.edu',
         description: 'Teacher Monthly Stipend',
@@ -119,7 +150,7 @@ async function runSmokeTest() {
   );
 
   // ---------------------------------------------------------------------------
-  // TEST 4: Queueing Engine & AI Dataset RAG Ingestion
+  // TEST 5: Queueing Engine & AI Dataset RAG Ingestion
   // ---------------------------------------------------------------------------
   await TenantContext.run(
     { tenantId: 'oakwood-academy', tier: 'STARTER_POOLED_RLS' },
@@ -146,7 +177,7 @@ async function runSmokeTest() {
   );
 
   // ---------------------------------------------------------------------------
-  // TEST 5: Admin Control Plane Dashboard & Unbound Guard
+  // TEST 6: Admin Control Plane Dashboard & Unbound Guard
   // ---------------------------------------------------------------------------
   await TenantContext.run(
     { tenantId: 'oakwood-academy', tier: 'STARTER_POOLED_RLS' },

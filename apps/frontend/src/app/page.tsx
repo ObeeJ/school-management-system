@@ -7,12 +7,13 @@ import { AdminDashboard } from '../components/AdminDashboard';
 import { StripePaymentsSection } from '../components/StripePaymentsSection';
 import { KycVerificationSection } from '../components/KycVerificationSection';
 import { AiEngineSection } from '../components/AiEngineSection';
+import { MembershipSubscriptionsSection } from '../components/MembershipSubscriptionsSection';
 import { StudentsTable } from '../components/StudentsTable';
 import { LedgerSection } from '../components/LedgerSection';
 import Link from 'next/link';
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'ADMIN' | 'PAYMENTS' | 'KYC' | 'AI_ENGINE'>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'ADMIN' | 'MEMBERSHIP' | 'PAYMENTS' | 'KYC' | 'AI_ENGINE'>('OVERVIEW');
 
   return (
     <div className="min-h-screen flex flex-col bg-[#faf9f5]">
@@ -28,6 +29,14 @@ export default function Home() {
             }`}
           >
             Overview & Tenancy RLS
+          </button>
+          <button
+            onClick={() => setActiveTab('MEMBERSHIP')}
+            className={`px-4 py-2 rounded-sm transition-colors cursor-pointer whitespace-nowrap ${
+              activeTab === 'MEMBERSHIP' ? 'bg-[#24333c] text-[#faf9f5]' : 'text-[#57544d] hover:text-[#1c1b18]'
+            }`}
+          >
+            Membership Plans (Auto-Debit)
           </button>
           <button
             onClick={() => setActiveTab('ADMIN')}
@@ -74,6 +83,7 @@ export default function Home() {
           </>
         )}
 
+        {activeTab === 'MEMBERSHIP' && <MembershipSubscriptionsSection />}
         {activeTab === 'ADMIN' && <AdminDashboard />}
         {activeTab === 'PAYMENTS' && <StripePaymentsSection />}
         {activeTab === 'KYC' && <KycVerificationSection />}
