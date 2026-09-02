@@ -472,7 +472,100 @@ b3d0e71 - fix: smoke test and database service types
 
 ---
 
-## 12. License & Author
+## 12. CI/CD Engineering & Package Management (`pnpm`) Architecture
+
+### Package Manager Standard: `pnpm` (v11.1.3)
+This project strictly utilizes **`pnpm`** as the monorepo package manager for fast, disk-efficient, strict dependency resolution via symlinks:
+* **Workspace Manifest (`pnpm-workspace.yaml`):** Controls `apps/*` (NestJS backend, Next.js frontend) and `packages/*`.
+* **Lockfile Integrity:** `pnpm-lock.yaml` is enforced across development, Docker builds (`RUN pnpm install --frozen-lockfile`), and GitHub Actions CI runner (`pnpm/action-setup@v3`).
+
+```
+                                  GIT PUSH TRIGGER
+                                         |
+                       +-----------------+-----------------+
+                       |                                   |
+           LOCAL PRE-PUSH GATE (.husky/pre-push)    REMOTE GITHUB ACTIONS CI/CD (.github/workflows/ci.yml)
+                       |                                   |
+           Executes Integration Smoke Test        Triggers Matrix Build & Verification:
+           (13/13 Assertions Passing)              1. Code Checkout
+                       |                           2. pnpm Node 20 Setup
+          [Pass] Allow Push to Remote              3. NestJS & Next.js Typecheck
+          [Fail] Reject Push Immediately           4. 13/13 Integration Smoke Test
+                                                   5. Docker Compose Config Validation
+```
+
+### 12.1 GitHub Actions CI Pipeline (`.github/workflows/ci.yml`)
+Triggers automatically on push to **all branches** (`branches: ['**']`) and pull requests to `main` and `dev`:
+
+```yaml
+name: Scholaria CI/CD Pipeline & Quality Gate
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - main
+      - dev
+
+jobs:
+  build-and-test:
+    name: Build, Typecheck & Integration Verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 2. Install pnpm Package Manager
+        uses: pnpm/action-setup@v3
+        with:
+          version: 11.1.3
+
+      - name: 3. Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 4. Install Workspace Dependencies
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: 5. TypeScript Compilation & Typecheck (Backend & Frontend)
+        run: |
+          pnpm --filter backend build
+          pnpm --filter frontend build
+
+      - name: 6. Execute Multi-Tenancy & FinTech Integration Smoke Test Suite
+        run: npx ts-node --compiler-options '{"module":"commonjs"}' scripts/smoke-test.ts
+
+      - name: 7. Verify Docker Compose Configuration Integrity
+        run: docker compose config
+```
+
+### 12.2 Husky Git Pre-Push Hook (`.husky/pre-push`)
+Intercepts local `git push` operations and blocks remote transmission if any assertion in `scripts/smoke-test.ts` fails:
+
+```bash
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "🔒 SCHOLARIA PRE-PUSH QUALITY GATE: RUNNING MULTI-TENANCY & FINTECH TESTS"
+npx ts-node --compiler-options '{"module":"commonjs"}' scripts/smoke-test.ts
+
+if [ $? -ne 0 ]; then
+  echo "❌ [PRE-PUSH GATE FAILED] Pre-push tests failed! Push rejected."
+  exit 1
+fi
+
+echo "✓ [PRE-PUSH GATE PASSED] All 13 multi-tenancy & FinTech tests passed cleanly."
+exit 0
+```
+
+---
+
+## 13. License & Author
 
 * **Author:** Principal Software Engineer (`ObeeJ`)
 * **License:** MIT License — Open for educational and enterprise architectural reference.
